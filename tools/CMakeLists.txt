@@ -20,3 +20,4 @@ add_executable(
 	kptools 
 	${SOURCES}
 )
+target_link_libraries(kptools log)

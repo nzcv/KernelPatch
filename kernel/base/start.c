@@ -373,6 +373,17 @@ static void log_regs()
     // log_reg(PMMIR_EL1); //        | R       | Performance Monitors Machine Identification Register
     // log_reg(PMSIDR_EL1); //       | R   [4] | Sampling Profiling ID Register
 }
+static void dump_start_preset(const start_preset_t *preset) {
+    // Print out the values of the members of start_preset_t
+    log_boot("kernel_version: %d.%d.%d.%d\n", preset->kernel_version.major, preset->kernel_version.minor, preset->kernel_version.patch, preset->kernel_version._);
+    log_boot("kallsyms_lookup_name_offset: %llx\n", preset->kallsyms_lookup_name_offset);
+    log_boot("kernel_size: %lx\n", preset->kernel_size);
+    log_boot("start_offset: %llx\n", preset->start_offset);
+    log_boot("extra_size: %llx\n", preset->extra_size);
+    log_boot("kernel_pa: %llx\n", preset->kernel_pa);
+    log_boot("map_offset: %llx\n", preset->map_offset);
+    log_boot("map_backup_len: %llx\n", preset->map_backup_len);    
+}
 
 static void start_init(uint64_t kimage_voff, uint64_t linear_voff)
 {
@@ -391,7 +402,8 @@ static void start_init(uint64_t kimage_voff, uint64_t linear_voff)
 
     vsprintf = (typeof(vsprintf))kallsyms_lookup_name("vsprintf");
 
-    log_boot(KERNEL_PATCH_BANNER);
+    log_boot("**********\n");
+    dump_start_preset(&start_preset);
 
     endian = *(unsigned char *)&(uint16_t){ 1 } ? little : big;
     setup_header_t *header = &start_preset.header;
@@ -409,23 +421,53 @@ static void start_init(uint64_t kimage_voff, uint64_t linear_voff)
 
     kallsyms_on_each_symbol = (typeof(kallsyms_on_each_symbol))kallsyms_lookup_name("kallsyms_on_each_symbol");
     lookup_symbol_attrs = (typeof(lookup_symbol_attrs))kallsyms_lookup_name("lookup_symbol_attrs");
+    
+    // https://cloud.tencent.com/developer/article/1950803
+    // https://www.bilibili.com/video/BV1EZ421a7DA/?spm_id_from=333.337.search-card.all.click&vd_source=ad20967551d9c72f5a3425315a36cfe6
+    do {
+        uint64_t SCTLR_EL1;
+        asm volatile("mrs %0, SCTLR_EL1" : "=r"(SCTLR_EL1));
+        uint64_t CAM = bits(SCTLR_EL1, 2, 0);        
+        uint64_t I = (SCTLR_EL1 >> 12) & 1;
+        log_boot("Kernel Patch I: %llx CAM: %llx\n", I, CAM);
+
+        uint64_t CurrentEL;
+        asm volatile("mrs %0, CurrentEL" : "=r"(CurrentEL));
+        log_boot("Kernel Patch EL: %llx\n", bits(CurrentEL, 3, 2));
+    } while (0);
 
     uint64_t tcr_el1;
     asm volatile("mrs %0, tcr_el1" : "=r"(tcr_el1));
+    // T1SZ, bits [21:16] 通过TTBR1寻址的内存区域的大小偏移量，也就是TTBR1基地址下的一级页表的大小
+    // 在 ARM 的 tcr_el1 寄存器中，位 21 到位 16 表示的是 T1SZ 字段，它指定了虚拟地址空间的大小
+    // T1SZ
+    // The size offset of the memory region addressed by TTBR1_EL1. The region size is 2^(64-T1SZ) bytes.
     uint64_t t1sz = bits(tcr_el1, 21, 16);
-    va_bits = 64 - t1sz;
-    uint64_t tg1 = bits(tcr_el1, 31, 30);
 
+    va_bits = 64 - t1sz; //va_bits = 64 - 25 = 39
+    uint64_t tg1 = bits(tcr_el1, 31, 30);
+    // 用于获取 tg1 的值。在 ARM 的 tcr_el1 寄存器中，位 31 到位 30 表示的是 TG1 字段，它指定了第一个级别的页表（Translation Granule）的大小
+    // TG0/TG1 | Granule size | Granule size(其实就是页面的大小,4k/16k/64k)
+    // TG1	Meaning
+    // 0b01	16KB.
+    // 0b10	4KB.
+    // 0b11	64KB.
     page_shift = 12;
     if (tg1 == 1) {
         page_shift = 14;
     } else if (tg1 == 3) {
         page_shift = 16;
     }
-    page_size = 1 << page_shift;
+    page_size = 1 << page_shift;    
+    page_level = (va_bits - 4) / (page_shift - 3); // 39 - 4 / 12 - 3 = 35 / 9 = 3
+    log_boot("page_size: %llx page_level %llx tg1:0x%lx t1sz:0x%lx\n", page_size, page_level, tg1, t1sz);
 
-    page_level = (va_bits - 4) / (page_shift - 3);
+    //TTBR1 内核空间页表基地址
+    //TTBR1_EL1指向特权模式的页表基地址，用于特权模式下的地址空间转换；
 
+    //TTBR0 用户空间页表基地址
+    //TTBR0_EL0指向非特权模式的页表基地址，用于非特权模式下的地址空间转换
+    
     uint64_t ttbr1_el1;
     asm volatile("mrs %0, ttbr1_el1" : "=r"(ttbr1_el1));
     uint64_t baddr = ttbr1_el1 & 0xFFFFFFFFFFFE;
@@ -442,6 +484,7 @@ static int nice_zone()
 int __attribute__((section(".start.text"))) __noinline start(uint64_t kimage_voff, uint64_t linear_voff)
 {
     start_init(kimage_voff, linear_voff);
+    // 权限控制
     prot_myself();
     restore_map();
     log_regs();

@@ -12,12 +12,14 @@
 #include <errno.h>
 #include <stdbool.h>
 
-#include <string.h>
+#if defined (__ANDROID__)
+#include <android/log.h>
+#endif
 
 extern bool log_enable;
 
 #define tools_logi(fmt, ...) \
-    if (log_enable) fprintf(stdout, "[+] " fmt, ##__VA_ARGS__);
+    if (log_enable) fprintf(stdout, "[+] " fmt, ##__VA_ARGS__); __android_log_print(ANDROID_LOG_INFO, "monoInject", fmt, ##__VA_ARGS__);
 
 #define tools_logw(fmt, ...) \
     if (log_enable) fprintf(stdout, "[?] " fmt, ##__VA_ARGS__);

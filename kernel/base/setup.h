@@ -39,13 +39,14 @@ typedef struct
     uint64_t printk_relo;
     uint64_t tmp0_offset;
     uint64_t tmp1_offset;
+    uint64_t x16_offset;
     char str_fmt_px[24];
-#endif
+#endif    
     // local
     int64_t va1_bits;
     int64_t page_shift;
     uint64_t kimage_voffset;
-    uint64_t linear_voffset;
+    uint64_t linear_voffset;        
 } map_data_t;
 #else
 #define map_paging_init_backup_offset 0
@@ -62,7 +63,8 @@ typedef struct
 #define map_printk_relo_offset (map_map_symbol_offset + MAP_SYMBOL_SIZE)
 #define map_tmp0_offset (map_printk_relo_offset + 8)
 #define map_tmp1_offset (map_tmp0_offset + 8)
-#define map_str_fmt_px_offset (map_tmp1_offset + 8)
+#define map_x16_offset (map_tmp1_offset + 8)
+#define map_str_fmt_px_offset (map_x16_offset + 8)
 #endif // MAP_DEBUG
 #endif
 

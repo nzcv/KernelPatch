@@ -141,7 +141,8 @@ start_prepare:
     // map_data.start_img_size = start_img_size;
     str x22, [x9, #map_start_img_size_offset]
 
-    // start and extra
+    // start and extra 
+    // 0x2B44000
     // memcpy(kernel_pa + start_offset, (uint64_t)_kp_start, start_img_size + setup_preset.extra_size)
     add x0, x19, x21
     adrp x1, _kp_start
@@ -194,6 +195,13 @@ map_prepare:
     // map_data.printk_relo = setup_preset.printk_offset;
     ldr x11, [x10, #setup_printk_offset_offset]
     str x11, [x9, #map_printk_relo_offset]
+    
+    adrp x12, _link_base
+    add x12, x12, :lo12:_link_base
+    // uint64 kernel_pa = (uint64_t)_link_base - setup_preset.setup_offset;
+    ldr x11, [x10, #setup_setup_offset_offset]
+    sub x12, x12, x11
+    str x12, [x9, #map_x16_offset]
 #endif
     // set start memory info
     // map_data.start_offset = setup_preset.start_offset;
@@ -328,7 +336,7 @@ setup:
     // _head
     br x16
 
-
+; https://github.com/nzcv/blu7t/blob/master/kernel/arch/arm64/kernel/head.S
 .section .entry.text, "ax"
 .global setup_entry
 .type entry, %function

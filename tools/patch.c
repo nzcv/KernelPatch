@@ -23,6 +23,7 @@
 #include "symbol.h"
 #include "kpm.h"
 #include "sha256.h"
+#include "log.h"
 
 void read_kernel_file(const char *path, kernel_file_t *kernel_file)
 {
@@ -33,6 +34,14 @@ void read_kernel_file(const char *path, kernel_file_t *kernel_file)
     if (kernel_file->is_uncompressed_img) img_offset = 20;
     kernel_file->kimg = kernel_file->kfile + img_offset;
     kernel_file->kimg_len = kernel_file->kfile_len - img_offset;
+}
+
+void dump_kernel_file(const kernel_file_t *file) {
+    LOGF("kfile: %p", (void *)file->kfile);
+    LOGF("kimg: %p", (void *)file->kimg);
+    LOGF("kfile_len: %x", file->kfile_len);
+    LOGF("kimg_len: %x", file->kimg_len);
+    LOGF("is_uncompressed_img: %d", file->is_uncompressed_img);
 }
 
 void update_kernel_file_img_len(kernel_file_t *kernel_file, int kimg_len, bool is_different_endian)
@@ -336,6 +345,22 @@ static void extra_append(char *kimg, const void *data, int len, int *offset)
     *offset += len;
 }
 
+static void dump_setup_preset(const setup_preset_t *preset) {
+    LOGF("kernel_version: %d.%d.%d.%d", preset->kernel_version.major, preset->kernel_version.minor, preset->kernel_version.patch, preset->kernel_version._);
+    LOGF("kimg_size: %lx", preset->kimg_size);
+    LOGF("kpimg_size: %lx", preset->kpimg_size);
+    LOGF("kernel_size: %lx", preset->kernel_size);
+    LOGF("page_shift: %lx", preset->page_shift);
+    LOGF("setup_offset: %lx", preset->setup_offset);
+    LOGF("start_offset: %lx", preset->start_offset);
+    LOGF("extra_size: %lx", preset->extra_size);
+    LOGF("map_offset: %lx", preset->map_offset);
+    LOGF("map_max_size: %lx", preset->map_max_size);
+    LOGF("kallsyms_lookup_name_offset: %lx", preset->kallsyms_lookup_name_offset);
+    LOGF("paging_init_offset: %lx", preset->paging_init_offset);
+    LOGF("printk_offset: %lx", preset->printk_offset);
+    // continue dumping other members similarly
+}
 int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *out_path, const char *superkey,
                      bool root_key, const char **additional, const char *kpatch_path, extra_config_t *extra_configs,
                      int extra_config_num)
@@ -349,6 +374,8 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
     patched_kimg_t pimg = { 0 };
     kernel_file_t kernel_file;
     read_kernel_file(kimg_path, &kernel_file);
+    dump_kernel_file(&kernel_file);
+    
     if (kernel_file.is_uncompressed_img) tools_logw("kernel image with UNCOMPRESSED_IMG header\n");
 
     int rc = parse_image_patch_info(kernel_file.kimg, kernel_file.kimg_len, &pimg);
@@ -618,6 +645,7 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
     extra_append(out_kernel_file.kimg, (void *)&empty_item, sizeof(empty_item), &current_offset);
 
     write_kernel_file(&out_kernel_file, out_path);
+    dump_setup_preset(setup);
 
     // free
     free(kallsym_kimg);
