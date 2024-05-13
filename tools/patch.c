@@ -593,7 +593,14 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
     // modify kernel entry
     int paging_init_offset = get_symbol_offset_exit(&kallsym, kallsym_kimg, "paging_init");
     setup->paging_init_offset = relo_branch_func(kallsym_kimg, paging_init_offset);
+
+    
     int text_offset = align_kimg_len + SZ_4K;
+    // text_offset   :25b2000 
+    // align_kimg_len:25b1000
+    tools_logi("text_offset:%x align_kimg_len:%x\n", text_offset, align_kimg_len);
+    
+    // b((uint32_t *)(out_kernel_file.kimg + 0), 0, 25b2000);
     b((uint32_t *)(out_kernel_file.kimg + kinfo->b_stext_insn_offset), kinfo->b_stext_insn_offset, text_offset);
 
     // additional [len key=value] set

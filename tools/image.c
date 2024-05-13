@@ -11,6 +11,7 @@
 
 #include "order.h"
 #include "common.h"
+#include "log.h"
 
 #define EFI_MAGIC_SIG "MZ"
 #define KERNEL_MAGIC "ARM\x64"
@@ -65,7 +66,9 @@ int32_t get_kernel_info(kernel_info_t *kinfo, const char *img, int32_t imglen)
 
     kinfo->uefi = !strncmp((const char *)khdr->hdr.efi.mz, EFI_MAGIC_SIG, strlen(EFI_MAGIC_SIG));
 
+    // 主入口指令
     uint32_t b_primary_entry_insn;
+    // 主入口指令偏移
     uint32_t b_stext_insn_offset;
     if (kinfo->uefi) {
         b_primary_entry_insn = khdr->hdr.efi.b_insn;
@@ -109,6 +112,13 @@ int32_t get_kernel_info(kernel_info_t *kinfo, const char *img, int32_t imglen)
     tools_logi("kernel load_offset: 0x%08x\n", kinfo->load_offset);
     tools_logi("kernel kernel_size: 0x%08x\n", kinfo->kernel_size);
     tools_logi("kernel page_shift: %d\n", kinfo->page_shift);
+    tools_logi("kernel is_be: %x\n", kinfo->is_be);
+    tools_logi("kernel uefi: %x\n", kinfo->uefi);
+    tools_logi("kernel load_offset: %x\n", kinfo->load_offset);
+    tools_logi("kernel kernel_size: %x\n", kinfo->kernel_size);
+    tools_logi("kernel page_shift: %x\n", kinfo->page_shift);
+    tools_logi("kernel b_stext_insn_offset: %x\n", kinfo->b_stext_insn_offset);
+    tools_logi("kernel primary_entry_offset: %x\n", kinfo->primary_entry_offset);
 
     return 0;
 }
