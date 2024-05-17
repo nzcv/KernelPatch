@@ -3,6 +3,8 @@
  * Copyright (C) 2024 bmax121. All Rights Reserved.
  */
 
+#include <stdint.h>
+#include <time.h>
 #define _GNU_SOURCE
 #define __USE_GNU
 
@@ -207,7 +209,9 @@ int parse_image_patch_info(const char *kimg, int kimg_len, patched_kimg_t *pimg)
 
     // kernel image infomation
     kernel_info_t *kinfo = &pimg->kinfo;
-    if (get_kernel_info(kinfo, kimg, kimg_len)) tools_loge_exit("get_kernel_info error\n");
+    if (get_kernel_info(kinfo, kimg, kimg_len)) {
+        tools_loge_exit("get_kernel_info error\n");
+    }
 
     // find banner
     char linux_banner_prefix[] = "Linux version ";
@@ -220,13 +224,18 @@ int parse_image_patch_info(const char *kimg, int kimg_len, patched_kimg_t *pimg)
             break;
         }
     }
-    if (!pimg->banner) tools_loge_exit("can't find linux banner\n");
+    if (!pimg->banner) {
+        tools_loge_exit("can't find linux banner\n");
+    } else {
+        // banner offset: 138000f
+        tools_logi("banner offset:%lx\n", (uint64_t)pimg->banner - (uint64_t)pimg->kimg);
+    }
 
     // patched or new
     preset_t *old_preset = get_preset(kimg, kimg_len);
     pimg->preset = old_preset;
 
-    if (!old_preset) {
+    if (old_preset == NULL) {
         tools_logi("new kernel image ...\n");
         pimg->ori_kimg_len = pimg->kimg_len;
         return 0;
@@ -376,14 +385,19 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
     read_kernel_file(kimg_path, &kernel_file);
     dump_kernel_file(&kernel_file);
     
-    if (kernel_file.is_uncompressed_img) tools_logw("kernel image with UNCOMPRESSED_IMG header\n");
+    if (kernel_file.is_uncompressed_img) {
+        tools_logw("kernel image with UNCOMPRESSED_IMG header\n");
+    }
 
     int rc = parse_image_patch_info(kernel_file.kimg, kernel_file.kimg_len, &pimg);
-    if (rc) tools_loge_exit("parse kernel image error\n");
+    if (rc) {
+        tools_loge_exit("parse kernel image error\n");
+    }
     // print_image_patch_info(&pimg);
 
     // kimg base info
     kernel_info_t *kinfo = &pimg.kinfo;
+    // int align_kernel_size = 2b44000 = kinfo->kernel_size 
     int align_kernel_size = align_ceil(kinfo->kernel_size, SZ_4K);
 
     // kimg kallsym
@@ -398,6 +412,8 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
     char *kpimg = NULL;
     int kpimg_len = 0;
     read_file_align(kpimg_path, &kpimg, &kpimg_len, 0x10);
+    tools_logi("start: %lx %lx", *(uint64_t*)kpimg, *((uint64_t*)kpimg+1));
+    tools_logi("end: %lx %lx", *(uint64_t*)(kpimg+kpimg_len-sizeof(uint64_t)*2), *(uint64_t*)(kpimg+kpimg_len-sizeof(uint64_t)*2));
 
     // embed kpatch executable
     if (kpatch_path) {
@@ -496,6 +512,10 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
     int align_kimg_len = align_ceil(ori_kimg_len, SZ_4K);
     int out_img_len = align_kimg_len + kpimg_len;
     int out_all_len = out_img_len + extra_size;
+    tools_logi("ori_kimg_len: 0x%x\n", ori_kimg_len);
+    tools_logi("align_kimg_len: 0x%x\n", align_kimg_len);
+    tools_logi("out_img_len: 0x%x\n", out_img_len);
+    tools_logi("out_all_len: 0x%x\n", out_all_len);
 
     int start_offset = align_kernel_size;
     if (out_all_len > start_offset) {
@@ -592,6 +612,8 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
 
     // modify kernel entry
     int paging_init_offset = get_symbol_offset_exit(&kallsym, kallsym_kimg, "paging_init");
+    tools_logi("paging_init_offset:%x\n", paging_init_offset);
+
     setup->paging_init_offset = relo_branch_func(kallsym_kimg, paging_init_offset);
 
     

@@ -12,7 +12,7 @@
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #define KSYM_TOKEN_NUMS 256
-#define KSYM_SYMBOL_LEN 512
+#define KSYM_SYMBOL_LEN 512 //????
 
 #define KSYM_MIN_NEQ_SYMS 25600
 #define KSYM_MIN_MARKER (KSYM_MIN_NEQ_SYMS / 256)
@@ -53,7 +53,7 @@ enum arch_type
     ARM_LE,
     X86
 };
-
+//                          0xffffff8008080000
 #define ELF64_KERNEL_MIN_VA 0xffffff8008080000
 #define ELF64_KERNEL_MAX_VA 0xffffffffffffffff
 

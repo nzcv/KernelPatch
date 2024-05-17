@@ -55,6 +55,9 @@ typedef struct
     } pe;
 } arm64_hdr_t;
 
+/**
+读取kenrel header信息
+*/
 int32_t get_kernel_info(kernel_info_t *kinfo, const char *img, int32_t imglen)
 {
     kinfo->is_be = 0;
@@ -107,19 +110,28 @@ int32_t get_kernel_info(kernel_info_t *kinfo, const char *img, int32_t imglen)
         kinfo->page_shift = 12;
     }
 
+    // kernel image_size: 0x025b0010
     tools_logi("kernel image_size: 0x%08x\n", imglen);
+    // kernel uefi header: false
     tools_logi("kernel uefi header: %s\n", kinfo->uefi ? "true" : "false");
+    // kernel load_offset: 0x80000
     tools_logi("kernel load_offset: 0x%08x\n", kinfo->load_offset);
+    // kernel kernel_size: 02b44000
     tools_logi("kernel kernel_size: 0x%08x\n", kinfo->kernel_size);
+    // kernel page_shift: 12
     tools_logi("kernel page_shift: %d\n", kinfo->page_shift);
+    // kernel is_be: false
     tools_logi("kernel is_be: %x\n", kinfo->is_be);
+    // kernel uefi: 0
     tools_logi("kernel uefi: %x\n", kinfo->uefi);
+    // kernel load_offset: 80000
     tools_logi("kernel load_offset: %x\n", kinfo->load_offset);
     tools_logi("kernel kernel_size: %x\n", kinfo->kernel_size);
     tools_logi("kernel page_shift: %x\n", kinfo->page_shift);
+    // kernel b_stext_insn_offset: 0
     tools_logi("kernel b_stext_insn_offset: %x\n", kinfo->b_stext_insn_offset);
+    // kernel primary_entry_offset: 1f80000
     tools_logi("kernel primary_entry_offset: %x\n", kinfo->primary_entry_offset);
-
     return 0;
 }
 

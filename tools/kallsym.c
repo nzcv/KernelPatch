@@ -3,6 +3,7 @@
  * Copyright (C) 2023 bmax121. All Rights Reserved.
  */
 
+#include <stdint.h>
 #define _GNU_SOURCE
 #define __USE_GNU
 
@@ -16,6 +17,7 @@
 #include "order.h"
 #include "insn.h"
 #include "common.h"
+#include "log.h"
 
 static int find_linux_banner(kallsym_t *info, char *img, int32_t imglen)
 {
@@ -41,6 +43,8 @@ static int find_linux_banner(kallsym_t *info, char *img, int32_t imglen)
             info->linux_banner_offset[info->banner_num++] = (int32_t)(banner - img);
             tools_logi("linux_banner %d: %s", info->banner_num, banner);
             tools_logi("linux_banner offset: 0x%lx\n", banner - img);
+            // linux_banner offset: 0x138000f
+            // linux_banner offset: 0x1880038
         }
     }
     banner = img + info->linux_banner_offset[info->banner_num - 1];
@@ -60,6 +64,7 @@ static int find_linux_banner(kallsym_t *info, char *img, int32_t imglen)
 
     tools_logi("kernel version major: %d, minor: %d, patch: %d\n", info->version.major, info->version.minor,
                info->version.patch);
+    // kernel viersion major: 4, minor: 14, patch: 190
     return 0;
 }
 
@@ -116,6 +121,7 @@ static int find_token_table(kallsym_t *info, char *img, int32_t imglen)
 
     info->kallsyms_token_table_offset = offset;
     tools_logi("kallsyms_token_table offset: 0x%08x\n", offset);
+    //kallsyms_token_table offset: 0x01a86600
 
     // rebuild token_table
     pos = img + info->kallsyms_token_table_offset;
@@ -124,11 +130,16 @@ static int find_token_table(kallsym_t *info, char *img, int32_t imglen)
         while (*(pos++)) {
         };
     }
-    // tools_logi("token table: ");
-    // for (int32_t i = 0; i < KSYM_TOKEN_NUMS; i++) {
-    //   printf("%s ", info->kallsyms_token_table[i]);
-    // }
-    // printf("\n");
+    
+    /*
+    [+] kallsyms_token_table offset: 0x01a86600
+    D SHELLOUT: [+] token table: end und put_ al_ du ys 3_ re_ th pl ne ca para iv 2_ init_ ext to_ how 1_ map_ devent_ rea cal raw_ t_s ul na fin register_ key lin on_ up_ ig _con ge gs h_ 4_ e_s la han alloc _set_ rc . _sta 0 1 2 3 4 5 6 7 8 9 devic com do dis ttrace_ _co tracepoint_ A B C D E F G H I J K L M N O P Q R S T U V W X Y Z attr_ fs rt ops _ cl a b c d e f g h i j k l m n o p q r s t u v w x y z ip trace point_ pc wr pro m_s ou fre da ir mm ter_ q_ ds el fs_ ate_ x_ ab t__ fo pr io rs id ar ke yp it_ tc de_ Ts ho mp regis no ec li lo qu tp es dr res int_ ms mo di dev_ w_ ic f_ tr_ bu le_ er_ trace_ ex __ up init event_ ter ch get_ pu et op reg ts loc as me fi ad an y_ g_ ev us i_ co to ro c_ ra trac l_ ma ent_ k_ po le is ti un pa it oc r__kstrtab_ r__ksymtab_ ymtab_ dev at p_ et_ ym on al er trtab_ d_ ac s_ m_ te _c en de r__ks ks tab_ _s r__ tr b_ in re ta e_ r_ t_
+    */
+    tools_logi("token table: ");
+    for (int32_t i = 0; i < KSYM_TOKEN_NUMS; i++) {
+       printf("%s ", info->kallsyms_token_table[i]);
+    }
+    printf("\n");
     return 0;
 }
 
@@ -162,11 +173,14 @@ static int find_token_index(kallsym_t *info, char *img, int32_t imglen)
     info->is_be = lepos ? 0 : 1;
 
     info->kallsyms_token_index_offset = pos - img;
-
+    
+    //kallsyms_token_index offset: 0x01a86a00
     tools_logi("kallsyms_token_index offset: 0x%08x\n", info->kallsyms_token_index_offset);
     return 0;
 }
 
+//arch/arm64/include/uapi/asm/bitsperlong.h
+//#define __BITS_PER_LONG 64
 static int get_markers_elem_size(kallsym_t *info)
 {
     /*
@@ -199,7 +213,16 @@ static inline int get_offsets_elem_size(kallsym_t *info)
 {
     return info->asm_long_size;
 }
-
+// https://elixir.bootlin.com/linux/latest/source/arch/arm64/kernel/pi/relocate.c#L20
+// https://rhythm16.github.io/kaslr/
+/*
+typedef struct {
+  Elf64_Addr    r_offset;   // Address
+  Elf64_Xword   r_info;	    // 32-bit relocation type; 32-bit symbol index
+  Elf64_Sxword  r_addend;   // Addend
+} Elf64_Rela;
+The dynamic loader performs *(Elf_Addr*)(base+r_offset) += base + addend;
+*/
 static int try_find_arm64_relo_table(kallsym_t *info, char *img, int32_t imglen)
 {
     if (!info->try_relo) return 0;
@@ -213,14 +236,23 @@ static int try_find_arm64_relo_table(kallsym_t *info, char *img, int32_t imglen)
         uint64_t r_info = uint_unpack(img + cand + 8, 8, info->is_be);
         uint64_t r_addend = uint_unpack(img + cand + 16, 8, info->is_be);
         if ((r_offset & 0xffff000000000000) == 0xffff000000000000 && r_info == 0x403) {
-            if (!(r_addend & 0xfff) && r_addend >= min_va && r_addend < kernel_va) kernel_va = r_addend;
+            if (!(r_addend & 0xfff) && r_addend >= min_va && r_addend < kernel_va) {
+                kernel_va = r_addend;
+                tools_logi("cand offset:%x %lx\n", cand, kernel_va);
+                //05-14 15:55:32.728  9324  9324 I monoInject: cand offset:206c878 ffffff800997b000
+                //05-14 15:55:32.728  9324  9324 I monoInject: cand offset:206c968 ffffff8008080000
+            }
             cand += 24;
             rela_num++;
+            // tools_logi("r_offset:%lx r_info:%lx r_addend:%lx\n", r_offset, r_info, r_addend);
         } else if (rela_num && !r_offset && !r_info && !r_addend) {
             cand += 24;
             rela_num++;
+            // tools_logi("r_offset:%lx r_info:%lx r_addend:%lx\n", r_offset, r_info, r_addend);
         } else {
-            if (rela_num >= ARM64_RELO_MIN_NUM) break;
+            if (rela_num >= ARM64_RELO_MIN_NUM) {
+                break;
+            }
             cand += 8;
             rela_num = 0;
             kernel_va = max_va;
@@ -234,6 +266,7 @@ static int try_find_arm64_relo_table(kallsym_t *info, char *img, int32_t imglen)
     } else {
         info->elf64_kernel_base = kernel_va;
         tools_logi("find arm64 relocation kernel_va: 0x%" PRIx64 "\n", kernel_va);
+        //find arm64 relocation kernel_va: 0xffffff8008080000
     }
 
     int32_t cand_start = cand - 24 * rela_num;
@@ -252,8 +285,10 @@ static int try_find_arm64_relo_table(kallsym_t *info, char *img, int32_t imglen)
     }
 
     tools_logi("find arm64 relocation table range: [0x%08x, 0x%08x), count: 0x%08x\n", cand_start, cand_end, rela_num);
+    //find arm64 relocation table range: [0x0206c818, 0x0251e000), count: 0x000320ff
 
     // apply relocations
+    // 模拟Head.s __relocate_kernel
     int32_t max_offset = imglen - 8;
     int32_t apply_num = 0;
     for (cand = cand_start; cand < cand_end; cand += 24) {
@@ -274,12 +309,21 @@ static int try_find_arm64_relo_table(kallsym_t *info, char *img, int32_t imglen)
         }
 
         uint64_t value = uint_unpack(img + offset, 8, info->is_be);
-        if (value == r_addend) continue;
-        *(uint64_t *)(img + offset) = value + r_addend;
-        apply_num++;
+        if (value == r_addend) {
+            continue;
+        }
+        if((apply_num < 10) || ((cand_end - cand) / 24) < 10) {
+            tools_logi("%d cand:%x r_offset:%lx offset: %x, r_info:%lx value:%lx r_addend:%lx\n", apply_num, cand, r_offset, offset, r_info, value, r_addend);
+        }
+
+        if(*(uint64_t *)(img + offset) != value + r_addend) {
+            *(uint64_t *)(img + offset) = value + r_addend;
+            apply_num++;
+        }
     }
     if (apply_num) apply_num--;
     tools_logi("apply 0x%08x relocation entries\n", apply_num);
+    //apply 0x0001afb9(110521) relocation entries
 
     if (apply_num) info->relo_applied = 1;
 
@@ -352,6 +396,31 @@ static int find_approx_addresses(kallsym_t *info, char *img, int32_t imglen)
     return 0;
 }
 
+/**
+//out/.tmp_kallsyms2.S
+.globl kallsyms_offsets
+	ALGN
+kallsyms_offsets:
+	.long	0
+	.long	0
+	.long	0x800
+	.long	0x800
+	.long	0x800
+	.long	0x8ec
+	.long	0x990
+	.long	0xa5c
+	.long	0xaa4
+	.long	0xb50
+	.long	0xb98
+	.long	0xcac
+	.long	0xde0
+	.long	0xf20
+	.long	0xfc0
+	.long	0x1138
+
+1. kallsyms_offsets 是一个线性递增序列, Size不是固定的.
+2. scripts/kallsyms.c 通过table_size递增+=10000. 这里填写了25600
+*/
 static int find_approx_offsets(kallsym_t *info, char *img, int32_t imglen)
 {
     int32_t sym_num = 0;
@@ -377,8 +446,10 @@ static int find_approx_offsets(kallsym_t *info, char *img, int32_t imglen)
         return -1;
     }
     cand -= KSYM_MIN_NEQ_SYMS * elem_size;
+    // 往前查找到第一个0地址为止
     for (;; cand -= elem_size)
         if (!int_unpack(img + cand, elem_size, info->is_be)) break;
+    // 再来一次
     for (;; cand -= elem_size) {
         if (int_unpack(img + cand, elem_size, info->is_be)) break;
         if (zero_offset_num++ >= MAX_ZERO_OFFSET_NUM) break;
@@ -387,6 +458,7 @@ static int find_approx_offsets(kallsym_t *info, char *img, int32_t imglen)
     int32_t approx_offset = cand;
     info->_approx_addresses_or_offsets_offset = approx_offset;
 
+    // 查找近似kallsyms_offsets的尾部, 找到最后一个非线性递增的位置
     // approximate kallsyms_offsets end
     prev_offset = 0;
     for (; cand < imglen; cand += elem_size) {
@@ -399,12 +471,17 @@ static int find_approx_offsets(kallsym_t *info, char *img, int32_t imglen)
     int32_t end = cand;
     info->_approx_addresses_or_offsets_end = end;
     info->has_relative_base = 1;
+
+    // 近似符号数量
     int32_t approx_num_syms = (end - approx_offset) / elem_size;
     info->_approx_addresses_or_offsets_num = approx_num_syms;
+
     // The real interval is contained in this approximate interval
     tools_logi("approximate kallsyms_offsets range: [0x%08x, 0x%08x) "
                "count: 0x%08x\n",
                approx_offset, end, approx_num_syms);
+    // approximate kallsyms_offsets range: [0x016a0be0, 0x0172b628) count: 0x00022a92
+    // 头并不精准, 尾巴是对的
     return 0;
 }
 
@@ -414,12 +491,23 @@ static int32_t find_approx_addresses_or_offset(kallsym_t *info, char *img, int32
     if (info->version.major > 4 || (info->version.major == 4 && info->version.minor >= 6)) {
         // may have kallsyms_relative_base
         ret = find_approx_offsets(info, img, imglen);
-        if (!ret) return 0;
+        if (!ret) {
+            tools_logi("kernel version > 4.6 find kallsyms_relative_base\n");
+            return 0;
+        }
     }
     ret = find_approx_addresses(info, img, imglen);
     return ret;
 }
-
+/**
+ffffff8009720c00 R kallsyms_offsets
+ffffff80097ab700 R kallsyms_relative_base
+ffffff80097ab800 R kallsyms_num_syms
+ffffff80097ab900 R kallsyms_names
+ffffff8009979e00 R kallsyms_markers
+ffffff800997b000 R kallsyms_token_table
+ffffff800997b400 R kallsyms_token_index
+*/
 static int find_num_syms(kallsym_t *info, char *img, int32_t imglen)
 {
     int32_t approx_end = info->_approx_addresses_or_offsets_end;
@@ -428,8 +516,14 @@ static int find_num_syms(kallsym_t *info, char *img, int32_t imglen)
 
     int32_t approx_num_syms = info->_approx_addresses_or_offsets_num;
     int32_t nsyms = 0;
+    
+    // 猜测kallsyms_num_syms在kallsyms_offsets.end偏移4K以内
     int32_t nsyms_max_offset = approx_end + 4096;
+
+    // 他猜测...近似搜索数量差距在20以内...
     int32_t NSYMS_MAX_GAP = 20;
+
+    // 从approx_end往前偏移10位置开始搜索
     int32_t LAST_SYM_EQUAL_NUM = 10;
     int32_t cand = approx_end / num_syms_elem_size * num_syms_elem_size - LAST_SYM_EQUAL_NUM * num_syms_elem_size;
 
@@ -445,20 +539,30 @@ static int find_num_syms(kallsym_t *info, char *img, int32_t imglen)
         info->kallsyms_num_syms = nsyms;
         info->kallsyms_num_syms_offset = cand;
         tools_logi("kallsyms_num_syms offset: 0x%08x, value: 0x%08x\n", cand, nsyms);
+        //kallsyms_num_syms offset: 0x0172b800, value: 0x00022a8a
     }
     return 0;
 }
 
+/**
+ffffff8009979e00 R kallsyms_markers
+ffffff800997b000 R kallsyms_token_table --基于kallsyms_token_table查找kallsyms_markers offset
+ffffff800997b400 R kallsyms_token_index
+*/
 static int find_markers_1(kallsym_t *info, char *img, int32_t imglen)
 {
     int32_t elem_size = get_markers_elem_size(info);
     int32_t cand = info->kallsyms_token_table_offset - elem_size;
+    //cand = 0x18fb000L - 8L
+
+    //find last none zero element
     int64_t marker;
     for (;; cand -= elem_size) {
         marker = int_unpack(img + cand, elem_size, info->is_be);
         if (marker) break;
     }
     int32_t marker_end = cand + elem_size;
+    
     int64_t last_marker = 0x7fffffff;
     for (;; cand -= elem_size) {
         marker = int_unpack(img + cand, elem_size, info->is_be);
@@ -473,6 +577,7 @@ static int find_markers_1(kallsym_t *info, char *img, int32_t imglen)
     info->kallsyms_markers_offset = cand;
     info->_marker_num = marker_num;
     tools_logi("kallsyms_markers range: [0x%08x, 0x%08x), count: 0x%08x\n", cand, marker_end, marker_num);
+    //kallsyms_markers range: [0x018f9e00, 0x018faf58), count: 0x0000022b
     return 0;
 }
 
@@ -506,22 +611,31 @@ static int find_markers_2(kallsym_t *info, char *img, int32_t imglen)
     info->kallsyms_markers_offset = cand;
     info->_marker_num = count;
 
-    tools_logi("kallsyms_markers range: [0x%08x, 0x%08x), count: 0x%08x\n", cand, marker_end, count);
+    tools_logi("kallsyms_markers2 range: [0x%08x, 0x%08x), count: 0x%08x\n", cand, marker_end, count);
+    //kallsyms_markers range: [0x01a85700, 0x01a865e0), count: 0x000001dc
     return 0;
 }
 
 static inline int find_markers(kallsym_t *info, char *img, int32_t imglen)
 {
     // todo: remove one
+    tools_logi("find_markers_1\n");
     int rc = find_markers_1(info, img, imglen);
     if (!rc) return rc;
+    tools_logi("find_markers_2\n");
     return find_markers_2(info, img, imglen);
 }
 
+/**
+len
+kallsyms_token_table[tokidx, tokidx, tokidx, tokidx]
+*/
 static int decompress_symbol_name(kallsym_t *info, char *img, int32_t *pos_to_next, char *out_type, char *out_symbol)
 {
     int32_t pos = *pos_to_next;
     int32_t len = *(uint8_t *)(img + pos++);
+    
+    // 如何len > 127修正长度
     if (len > 0x7F) len = (len & 0x7F) + (*(uint8_t *)(img + pos++) << 7);
     if (!len || len >= KSYM_SYMBOL_LEN) return -1;
 
@@ -554,21 +668,38 @@ static int is_symbol_name_pos(kallsym_t *info, char *img, int32_t pos, char *sym
     }
     return (int32_t)strlen(symbol) == symidx;
 }
+/**
+ffffff8009720c00 R kallsyms_offsets
+ffffff80097ab700 R kallsyms_relative_base
+ffffff80097ab800 R kallsyms_num_syms
+ffffff80097ab900 R kallsyms_names
+ffffff8009979e00 R kallsyms_markers
 
+// 表格格式
+// .byte len ascii字符 ascii字符 ...（len个ascii字符）
+
+*/
 static int find_names(kallsym_t *info, char *img, int32_t imglen)
 {
     int32_t marker_elem_size = get_markers_elem_size(info);
     int32_t cand = info->_approx_addresses_or_offsets_offset;
     int32_t test_marker_num = -1;
     for (; cand < info->kallsyms_markers_offset; cand++) {
-        int32_t pos = cand;
+        int32_t pos = cand;        
         test_marker_num = KSYM_FIND_NAMES_USED_MARKER; // check n * 256 symbols
         for (int32_t i = 0;; i++) {
             int32_t len = *(uint8_t *)(img + pos++);
-            if (len > 0x7F) len = (len & 0x7F) + (*(uint8_t *)(img + pos++) << 7);
-            if (!len || len >= KSYM_SYMBOL_LEN) break;
+            if (len > 0x7F) {
+                // tools_logi("len > 0x7f\n"); 频繁打印, 先关闭
+                len = (len & 0x7F) + (*(uint8_t *)(img + pos++) << 7);
+            }
+            if (!len || len >= KSYM_SYMBOL_LEN) {
+                break;
+            }
             pos += len;
-            if (pos >= info->kallsyms_markers_offset) break;
+            if (pos >= info->kallsyms_markers_offset) {
+                break;
+            }
 
             if (i && (i & 0xFF) == 0xFF) { // every 256 symbols
                 int32_t mark_len = int_unpack(img + info->kallsyms_markers_offset + ((i >> 8) + 1) * marker_elem_size,
@@ -585,7 +716,8 @@ static int find_names(kallsym_t *info, char *img, int32_t imglen)
     }
     info->kallsyms_names_offset = cand;
     tools_logi("kallsyms_names offset: 0x%08x\n", cand);
-
+    // kallsyms_names offset: 0x0172b900
+    // ffffff80097ab900 R kallsyms_names
 #if 0
     // print all symbol for test
     // if CONFIG_KALLSYMS=y and CONFIG_KALLSYMS_ALL=n
@@ -695,7 +827,17 @@ static int correct_addresses_or_offsets_by_vectors(kallsym_t *info, char *img, i
 
     return 0;
 }
+/**
+通过banner找到正确的kallsyms_offsets
+ffffff80097ab800 R kallsyms_num_syms
+ffffff80097ab900 R kallsyms_names
+ffffff8009979e00 R kallsyms_markers
 
+1. 从kallsyms_names_offset开始搜索到kallsyms_markers_offset结束
+2. 解析kallsyms_names找到linux banner, 在kallsyms_names里面的index
+3. kallsyms_names[index+start] - kallsyms_names[start] = banner offset
+4. got start.
+*/
 static int correct_addresses_or_offsets_by_banner(kallsym_t *info, char *img, int32_t imglen)
 {
     int32_t pos = info->kallsyms_names_offset;
@@ -709,7 +851,7 @@ static int correct_addresses_or_offsets_by_banner(kallsym_t *info, char *img, in
         if (ret) return ret;
 
         if (!strcmp(symbol, "linux_banner")) {
-            tools_logi("names table linux_banner index: 0x%08x\n", index);
+            tools_logi("names table linux_banner index: 0x%08x\n", index); //65653
             break;
         }
         index++;
@@ -730,8 +872,10 @@ static int correct_addresses_or_offsets_by_banner(kallsym_t *info, char *img, in
 
         int32_t end = pos + 4096 + elem_size;
         for (; pos < end; pos += elem_size) {
-            uint64_t first_elem_val = uint_unpack(img + pos, elem_size, info->is_be);
-            int32_t offset = uint_unpack(img + pos + index * elem_size, elem_size, info->is_be) - first_elem_val;
+            uint64_t first_elem_val = uint_unpack(img + pos, elem_size, info->is_be);            
+            uint64_t tmp = uint_unpack(img + pos + index * elem_size, elem_size, info->is_be);
+            int32_t offset = tmp - first_elem_val;
+            tools_logi("%x %x %x %lx %lx %x\n", pos, index, elem_size, first_elem_val, tmp, offset);
             if (offset == target_offset) break;
         }
         if (pos < end) {
@@ -817,8 +961,12 @@ int analyze_kallsym_info(kallsym_t *info, char *img, int32_t imglen, enum arch_t
     info->is_64 = is_64;
     info->asm_long_size = 4;
     info->asm_PTR_size = 4;
-    if (arch == ARM64) info->try_relo = 1;
-    if (is_64) info->asm_PTR_size = 8;
+    if (arch == ARM64) {
+        info->try_relo = 1;
+    }
+    if (is_64) {
+        info->asm_PTR_size = 8;
+    }
 
     int rc = -1;
     static int32_t (*base_funcs[])(kallsym_t *, char *, int32_t) = {
@@ -834,10 +982,12 @@ int analyze_kallsym_info(kallsym_t *info, char *img, int32_t imglen, enum arch_t
     memcpy(copied_img, img, imglen);
 
     // 1st
+    LOGF("// 1st\n");
     rc = retry_relo_retry(info, copied_img, imglen);
     if (!rc) goto out;
 
     // 2nd
+    LOGF("// 2nd\n");
     if (!info->try_relo) {
         memcpy(copied_img, img, imglen);
         rc = retry_relo_retry(info, copied_img, imglen);
@@ -852,6 +1002,7 @@ int analyze_kallsym_info(kallsym_t *info, char *img, int32_t imglen, enum arch_t
     }
 
 out:
+    // 修改了重定位表
     memcpy(img, copied_img, imglen);
     free(copied_img);
     return rc;
