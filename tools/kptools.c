@@ -71,8 +71,15 @@ void print_usage(char **argv)
 
 int main(int argc, char *argv[])
 {
+    
     version = (MAJOR << 16) + (MINOR << 8) + PATCH;
     program_name = argv[0];
+    char cmdline[1024] = {0};
+    for(int i=0; i < argc; i++) {
+        strcat(cmdline, " ");
+        strcat(cmdline, argv[i]);
+    }
+    tools_logi("kptools cmdline:%s\n", cmdline);
 
     struct option longopts[] = { { "help", no_argument, NULL, 'h' },
                                  { "version", no_argument, NULL, 'v' },

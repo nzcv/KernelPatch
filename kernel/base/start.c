@@ -172,6 +172,7 @@ uint64_t *pgtable_entry(uint64_t pgd, uint64_t va)
 }
 KP_EXPORT_SYMBOL(pgtable_entry);
 
+//inlined
 static void prot_myself()
 {
     uint64_t *kpte = pgtable_entry_kernel(kernel_stext_va);
@@ -294,7 +295,7 @@ static void prot_myself()
         log_boot("add vmalloc area: %llx, %llx\n", kp_vm.addr, kp_vm.size);
     }
 }
-
+//inlined
 static void restore_map()
 {
     uint64_t start = kernel_va + start_preset.map_offset;
@@ -373,6 +374,8 @@ static void log_regs()
     // log_reg(PMMIR_EL1); //        | R       | Performance Monitors Machine Identification Register
     // log_reg(PMSIDR_EL1); //       | R   [4] | Sampling Profiling ID Register
 }
+
+//inlined
 static void dump_start_preset(const start_preset_t *preset) {
     // Print out the values of the members of start_preset_t
     log_boot("kernel_version: %d.%d.%d.%d\n", preset->kernel_version.major, preset->kernel_version.minor, preset->kernel_version.patch, preset->kernel_version._);
@@ -484,11 +487,15 @@ static int nice_zone()
 int __attribute__((section(".start.text"))) __noinline start(uint64_t kimage_voff, uint64_t linear_voff)
 {
     start_init(kimage_voff, linear_voff);
-    // 权限控制
+    //inlined
     prot_myself();
+    //inlined
     restore_map();
+    //inlined
     log_regs();
+    // not inlined
     predata_init();
+    // 
     symbol_init();
     return nice_zone();
 }

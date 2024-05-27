@@ -59,7 +59,7 @@ int32_t try_get_symbol_offset_zero(kallsym_t *info, char *img, char *symbol)
 void select_map_area(kallsym_t *kallsym, char *image_buf, int32_t *map_start, int32_t *max_size)
 {
     int32_t addr = 0x200;
-    addr = get_symbol_offset_exit(kallsym, image_buf, "tcp_init_sock");
+    addr = get_symbol_offset_exit(kallsym, image_buf, "tcp_init_sock"); //??????
     *map_start = align_ceil(addr, 16);
     *max_size = 0x800;
 }

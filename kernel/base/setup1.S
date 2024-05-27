@@ -229,6 +229,9 @@ map_prepare:
     // backup and hook paging_init
     // uint64_t paging_init_pa = paging_init_offset + kernel_pa;
     add x13, x15, x19
+#ifdef MAP_DEBUG
+    str x13, [x9, #map_paging_init_pa_offset]
+#endif
     // map_data.paging_init_backup = *(uint32_t *)(paging_init_pa);
     ldr w12, [x13]
     str w12, [x9, #map_paging_init_backup_offset]

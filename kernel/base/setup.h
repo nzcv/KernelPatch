@@ -7,6 +7,7 @@
 #define _KP_SETUP_H_
 
 #include "./preset.h"
+#include <stdint.h>
 
 #define STACK_SIZE 0x800
 
@@ -40,6 +41,7 @@ typedef struct
     uint64_t tmp0_offset;
     uint64_t tmp1_offset;
     uint64_t x16_offset;
+    uint64_t paging_init_pa_offset;
     char str_fmt_px[24];
 #endif    
     // local
@@ -64,7 +66,8 @@ typedef struct
 #define map_tmp0_offset (map_printk_relo_offset + 8)
 #define map_tmp1_offset (map_tmp0_offset + 8)
 #define map_x16_offset (map_tmp1_offset + 8)
-#define map_str_fmt_px_offset (map_x16_offset + 8)
+#define map_paging_init_pa_offset (map_x16_offset + 8)
+#define map_str_fmt_px_offset (map_paging_init_pa_offset + 8)
 #endif // MAP_DEBUG
 #endif
 

@@ -370,6 +370,34 @@ static void dump_setup_preset(const setup_preset_t *preset) {
     LOGF("printk_offset: %lx", preset->printk_offset);
     // continue dumping other members similarly
 }
+
+static void dump_patch_sym(const patch_symbol_t* data) {
+    tools_logi("kallsyms_lookup_name: 0x%lx\n", data->kallsyms_lookup_name);
+    tools_logi("printk: 0x%lx\n", data->printk);
+    tools_logi("vm_area_add_early: 0x%lx\n", data->vm_area_add_early);
+    tools_logi("panic: 0x%lx\n", data->panic);
+    tools_logi("rest_init: 0x%lx\n", data->rest_init);
+    tools_logi("cgroup_init: 0x%lx\n", data->cgroup_init);
+    tools_logi("kernel_init: 0x%lx\n", data->kernel_init);
+    tools_logi("report_cfi_failure: 0x%lx\n", data->report_cfi_failure);
+    tools_logi("__cfi_slowpath_diag: 0x%lx\n", data->__cfi_slowpath_diag);
+    tools_logi("__cfi_slowpath: 0x%lx\n", data->__cfi_slowpath);
+    tools_logi("copy_process: 0x%lx\n", data->copy_process);
+    tools_logi("cgroup_post_fork: 0x%lx\n", data->cgroup_post_fork);
+    tools_logi("do_execveat_common: 0x%lx\n", data->do_execveat_common);
+    tools_logi("__do_execve_file: 0x%lx\n", data->__do_execve_file);
+    tools_logi("do_execve_common: 0x%lx\n", data->do_execve_common);
+    tools_logi("do_faccessat: 0x%lx\n", data->do_faccessat);
+    tools_logi("sys_faccessat: 0x%lx\n", data->sys_faccessat);
+    tools_logi("sys_faccessat2: 0x%lx\n", data->sys_faccessat2);
+    tools_logi("sys_newfstatat: 0x%lx\n", data->sys_newfstatat);
+    tools_logi("vfs_statx: 0x%lx\n", data->vfs_statx);
+    tools_logi("vfs_fstatat: 0x%lx\n", data->vfs_fstatat);
+    tools_logi("avc_denied: 0x%lx\n", data->avc_denied);
+    tools_logi("slow_avc_audit: 0x%lx\n", data->slow_avc_audit);
+    tools_logi("input_handle_event: 0x%lx\n", data->input_handle_event);
+}
+
 int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *out_path, const char *superkey,
                      bool root_key, const char **additional, const char *kpatch_path, extra_config_t *extra_configs,
                      int extra_config_num)
@@ -412,8 +440,8 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
     char *kpimg = NULL;
     int kpimg_len = 0;
     read_file_align(kpimg_path, &kpimg, &kpimg_len, 0x10);
-    tools_logi("start: %lx %lx", *(uint64_t*)kpimg, *((uint64_t*)kpimg+1));
-    tools_logi("end: %lx %lx", *(uint64_t*)(kpimg+kpimg_len-sizeof(uint64_t)*2), *(uint64_t*)(kpimg+kpimg_len-sizeof(uint64_t)*2));
+    tools_logi("start: 0x%lx 0x%lx\n", *(uint64_t*)kpimg, *((uint64_t*)kpimg+1));
+    tools_logi("end: 0x%lx 0x%lx\n", *(uint64_t*)(kpimg+kpimg_len-sizeof(uint64_t)*2), *(uint64_t*)(kpimg+kpimg_len-sizeof(uint64_t)*2));
 
     // embed kpatch executable
     if (kpatch_path) {
@@ -528,9 +556,19 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
     kernel_file_t out_kernel_file;
     new_kernel_file(&out_kernel_file, &kernel_file, out_all_len, (bool)(is_be() ^ kinfo->is_be));
     memcpy(out_kernel_file.kimg, pimg.kimg, ori_kimg_len);
-    memset(out_kernel_file.kimg + ori_kimg_len, 0, align_kimg_len - ori_kimg_len);
-    memcpy(out_kernel_file.kimg + align_kimg_len, kpimg, kpimg_len);
+    memset(out_kernel_file.kimg + ori_kimg_len, 0, align_kimg_len - ori_kimg_len);    
 
+    //                                 0x28a7000                                0x27f80
+    memcpy(out_kernel_file.kimg + align_kimg_len, kpimg, kpimg_len);
+    
+    do {
+        char out_tmp1[1024] = {0};
+        sprintf(out_tmp1, "%s.tmp1", out_path);
+        tools_logi("out_tmp1:%s\n", out_tmp1);
+        write_kernel_file(&out_kernel_file, out_tmp1);
+    }while (0);
+
+    // 修改kpimg信息, 填充需要的数据信息
     // set preset
     preset_t *preset = (preset_t *)(out_kernel_file.kimg + align_kimg_len);
 
@@ -592,6 +630,7 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
 
     // start symbol
     fillin_patch_symbol(&kallsym, kallsym_kimg, ori_kimg_len, &setup->patch_symbol, kinfo->is_be, 0);
+    dump_patch_sym(&setup->patch_symbol);
 
     // superkey
     if (!root_key) {
@@ -643,8 +682,15 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
         strcpy(addition_pos, kv);
         addition_pos += kvlen;
     }
+    do {
+        char out_tmp2[1024] = {0};
+        sprintf(out_tmp2, "%s.tmp2", out_path);
+        tools_logi("out_tmp2:%s\n", out_tmp2);
+        write_kernel_file(&out_kernel_file, out_tmp2);
+    }while (0);
 
     // append extra
+    tools_logi("=====append extra=====\n");
     int current_offset = out_img_len;
     for (int i = 0; i < extra_config_num; i++) {
         extra_config_t *config = extra_configs + i;
@@ -663,13 +709,19 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
             item->con_size = i32swp(item->con_size);
             item->args_size = i32swp(item->args_size);
         }
-
+        tools_logi("current_offset= 0x%x\n", current_offset);
         extra_append(out_kernel_file.kimg, (void *)item, sizeof(*item), &current_offset);
-        if (args_len > 0) extra_append(out_kernel_file.kimg, (void *)config->set_args, args_len, &current_offset);
+        if (args_len > 0) {
+            tools_logi("current_offset1= 0x%x\n", current_offset);
+            extra_append(out_kernel_file.kimg, (void *)config->set_args, args_len, &current_offset);
+        }
+        // kpatch 文件内容ELF
+        tools_logi("current_offset2= 0x%x\n", current_offset);    
         extra_append(out_kernel_file.kimg, (void *)config->data, con_len, &current_offset);
     }
 
     // guard extra
+    tools_logi("current_offset4= 0x%x\n", current_offset);
     patch_extra_item_t empty_item = { 0 };
     extra_append(out_kernel_file.kimg, (void *)&empty_item, sizeof(empty_item), &current_offset);
 
