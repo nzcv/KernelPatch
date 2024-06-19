@@ -173,6 +173,7 @@ uint64_t *pgtable_entry(uint64_t pgd, uint64_t va)
 KP_EXPORT_SYMBOL(pgtable_entry);
 
 //inlined
+//给kpimg赋予权限
 static void prot_myself()
 {
     uint64_t *kpte = pgtable_entry_kernel(kernel_stext_va);
@@ -494,6 +495,7 @@ int __attribute__((section(".start.text"))) __noinline start(uint64_t kimage_vof
     //inlined
     log_regs();
     // not inlined
+    // superkey 相关生成
     predata_init();
     // 
     symbol_init();
