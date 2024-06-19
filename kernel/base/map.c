@@ -183,42 +183,54 @@ static uint64_t __noinline get_or_create_pte(map_data_t *data, uint64_t va, uint
         CnP   OFFSET(0) NUMBITS(1) []
     ]
     */
+    // 拿到页表起始位置
     uint64_t baddr = ttbr1_el1 & 0xFFFFFFFFFFFE;
     uint64_t page_size = 1 << page_shift;
+    // 单页大小
     uint64_t page_size_mask = ~(page_size - 1);
+    // https://github.com/astahl/picrust/blob/master/kernel/src/system/arm_core/mmu/descriptors.rs    
     uint64_t attr_prot = 0xC0000000000703 | attr_indx;
 
     uint64_t pxd_pa = baddr & page_size_mask;
     uint64_t pxd_va = phys_to_lm(data, pxd_pa);
-    uint64_t pxd_entry_va = 0;
 
+    // L1, L2, L3
+    // 
+    uint64_t pxd_entry_va = 0;
     for (uint64_t lv = 4 - page_level; lv < 4; lv++) {
-        uint64_t pxd_shift = (page_shift - 3) * (4 - lv) + 3;
+        //L2: pxd_shift = (16 - 3) * (4- 2) + 3 = 29
+        //L2: uint64_t L2Mask = ((1L << 32) - 1) ^ ((1L << 29) -1);
+        uint64_t pxd_shift = (page_shift - 3) * (4 - lv) + 3;        
         uint64_t pxd_index = (va >> pxd_shift) & (pxd_ptrs - 1);
         uint64_t alloc_flag = 0;
         uint64_t block_flag = 0;
-
+        //pxd_entry_va = pxd_va + pxd_index * sizeof(PAGE_DESC);
         pxd_entry_va = pxd_va + pxd_index * 8;
 
         uint64_t pxd_desc = *((uint64_t *)pxd_entry_va);
 
         if ((pxd_desc & 0b11) == 0b11) { // table
+            //pxd output address
             pxd_pa = pxd_desc & (((1ul << (48 - page_shift)) - 1) << page_shift);
-        } else if ((pxd_desc & 0b11) == 0b01) { // block
-            // 4k page: lv1, lv2. 16k and 64k page: only lv2.
+        } else if ((pxd_desc & 0b11) == 0b01) { // block, or page
+            // 4k page: lv1, lv2. 
+            // 16k and 64k page: only lv2.
             uint64_t block_bits = (3 - lv) * pxd_bits + page_shift;
             pxd_pa = pxd_desc & (((1ul << (48 - block_bits)) - 1) << block_bits);
             block_flag = 1;
-        } else { // invalid, alloc
+        } else { // invalid, alloc            
             if (lv != 3) {
                 pxd_pa = memblock_phys_alloc_try_nid(page_size, page_size, 0);
                 alloc_flag = 1;
             } else {
+                // 直接存储的就是偏移地址
                 pxd_pa = pa;
             }
+            // 赋予权限
             pxd_desc = (pxd_pa) | attr_prot;
             *((uint64_t *)pxd_entry_va) = pxd_desc;
         }
+        // 如果新的内存分配, 清0处理
         pxd_va = phys_to_lm(data, pxd_pa);
         if (alloc_flag) {
             for (uint64_t i = pxd_va; i < pxd_va + page_size; i += 8) {
@@ -229,6 +241,7 @@ static uint64_t __noinline get_or_create_pte(map_data_t *data, uint64_t va, uint
             break;
         }
     }
+    // 返回页表项
     return pxd_entry_va;
 }
 
@@ -279,6 +292,7 @@ void __noinline _paging_init()
     // clear wxn
     // todo: restore wxn later
     // https://github.com/rust-embedded/aarch64-cpu/blob/main/src/registers/sctlr_el1.rs
+    // 0 This control has no effect on memory access permissions.
     uint64_t sctlr_el1 = 0;
     asm volatile("mrs %[reg], sctlr_el1" : [reg] "+r"(sctlr_el1));
     sctlr_el1 &= 0xFFFFFFFFFFF7FFFF;
