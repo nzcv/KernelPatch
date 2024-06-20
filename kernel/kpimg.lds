@@ -21,7 +21,7 @@ SECTIONS
         . = _setup_start + 4K;
     }
     
-    .setup.text : {
+    .text : {
         base/setup1.o(.entry.text)
         base/setup1.o(.text)
         base/setup.o(.text)

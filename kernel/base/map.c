@@ -36,7 +36,7 @@ map_data_t *__noinline get_data()
     return (map_data_t *)(va & ~((uint64_t)MAP_ALIGN - 1));
 }
 
-static uint64_t get_kva()
+static uint64_t __noinline get_kva()
 {
     map_data_t *data = get_data();
     uint64_t kernel_va = (uint64_t)data - data->map_offset;
@@ -66,7 +66,7 @@ static void flush_icache_all(void)
     asm volatile("isb" : : : "memory");
 }
 
-static map_data_t *mem_proc()
+static map_data_t * __noinline mem_proc()
 {
     map_data_t *data = get_data();
     uint64_t kernel_va = get_kva();

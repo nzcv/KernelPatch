@@ -8,6 +8,7 @@ CC = $(TARGET_COMPILE)gcc
 LD = $(TARGET_COMPILE)ld
 AS = $(TARGET_COMPILE)as
 OBJCOPY = $(TARGET_COMPILE)objcopy
+OBJDUMP := ${TARGET_COMPILE}objdump
 
 CFLAGS += -Wall -fno-builtin -std=gnu11 -nostdinc
 CFLAGS += -g
@@ -55,10 +56,11 @@ OBJS := $(OBJS:.S=.o)
 all: hdr ${TARGET}
 
 ${TARGET}: ${TARGET}.elf
-	${OBJCOPY} -O binary -S $^ $@
+	${OBJCOPY} -O binary $^ $@
 
 ${TARGET}.elf: ${OBJS}
 	${LD} -nostdlib -static -no-pie -Tkpimg.lds -o $@ $^
+	${OBJDUMP} -D -m aarch64 kpimg.elf > kpimg.dis
 
 %.o: %.c
 	${CC} $(CFLAGS) $(INCLUDE) -c -O2 -o $@ $<
